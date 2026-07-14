@@ -10,5 +10,79 @@
     "abort": {
       "single_instance_allowed": "Plant Monitor is already configured."
     }
+  },
+  "config_subentries": {
+    "plant": {
+      "title": "Plant",
+      "step": {
+        "user": {
+          "title": "Add plant",
+          "description": "Select a soil moisture sensor and define when the plant needs watering.",
+          "data": {
+            "name": "Plant name",
+            "moisture_sensor": "Soil moisture sensor",
+            "dry_below": "Dry below",
+            "clear_at": "Clear alert at"
+          },
+          "data_description": {
+            "name": "Name used for the plant device and its entities.",
+            "moisture_sensor": "Sensor providing a numeric soil moisture value from 0 to 100.",
+            "dry_below": "The plant needs watering when moisture falls below this value.",
+            "clear_at": "The watering alert clears when moisture reaches or exceeds this value."
+          }
+        },
+        "reconfigure": {
+          "title": "Edit plant",
+          "description": "Update the soil moisture sensor or watering thresholds.",
+          "data": {
+            "name": "Plant name",
+            "moisture_sensor": "Soil moisture sensor",
+            "dry_below": "Dry below",
+            "clear_at": "Clear alert at"
+          },
+          "data_description": {
+            "name": "Name used for the plant device and its entities.",
+            "moisture_sensor": "Sensor providing a numeric soil moisture value from 0 to 100.",
+            "dry_below": "The plant needs watering when moisture falls below this value.",
+            "clear_at": "The watering alert clears when moisture reaches or exceeds this value."
+          }
+        }
+      },
+      "error": {
+        "name_required": "Enter a plant name.",
+        "invalid_thresholds": "Clear alert at must be greater than dry below.",
+        "sensor_already_used": "This soil moisture sensor is already assigned to another plant."
+      },
+      "abort": {
+        "reconfigure_successful": "The plant was updated successfully."
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "plant_monitor_watering_needed": {
+        "name": "Plant Monitor watering needed"
+      },
+      "watering_needed": {
+        "name": "Watering needed"
+      }
+    },
+    "sensor": {
+      "dry_plants": {
+        "name": "Plant Monitor dry plants"
+      },
+      "unavailable_sensors": {
+        "name": "Plant Monitor unavailable sensors"
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "ok": "OK",
+          "dry": "Dry",
+          "unavailable": "Unavailable",
+          "invalid": "Invalid"
+        }
+      }
+    }
   }
 }

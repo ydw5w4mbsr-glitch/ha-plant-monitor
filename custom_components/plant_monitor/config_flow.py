@@ -123,13 +123,12 @@ class PlantConfigSubentryFlow(ConfigSubentryFlow):
                 title = str(user_input[CONF_NAME]).strip()
                 data = _subentry_data(user_input)
 
-                return self.async_update_reload_and_abort(
+                return self.async_update_and_abort(
                     entry,
                     subentry,
                     title=title,
                     data=data,
                     unique_id=data[CONF_MOISTURE_SENSOR],
-                    reload_even_if_entry_is_unchanged=False,
                 )
 
         return self.async_show_form(

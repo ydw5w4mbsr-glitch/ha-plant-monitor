@@ -1,0 +1,14 @@
+{
+  "title": "Plant Monitor",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Plant Monitor",
+        "description": "Create the central Plant Monitor integration. Plants can be added afterwards from the integration page."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Plant Monitor is already configured."
+    }
+  }
+}

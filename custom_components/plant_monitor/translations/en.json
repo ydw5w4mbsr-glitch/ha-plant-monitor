@@ -1,5 +1,4 @@
 {
-  "title": "Plant Monitor",
   "config": {
     "step": {
       "user": {
@@ -13,7 +12,11 @@
   },
   "config_subentries": {
     "plant": {
-      "title": "Plant",
+      "entry_type": "Plant",
+      "initiate_flow": {
+        "user": "Add plant",
+        "reconfigure": "Edit plant"
+      },
       "step": {
         "user": {
           "title": "Add plant",

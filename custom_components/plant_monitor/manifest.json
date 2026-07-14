@@ -1,0 +1,14 @@
+{
+  "domain": "plant_monitor",
+  "name": "Plant Monitor",
+  "codeowners": [
+    "@ydw5w4mbsr-glitch"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/ydw5w4mbsr-glitch/ha-plant-monitor",
+  "integration_type": "helper",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/ydw5w4mbsr-glitch/ha-plant-monitor/issues",
+  "single_config_entry": true,
+  "version": "0.1.0"
+}

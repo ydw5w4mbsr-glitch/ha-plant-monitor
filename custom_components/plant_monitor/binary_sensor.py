@@ -13,10 +13,7 @@ from .entity import PlantMonitorEntity, PlantMonitorPlantEntity
 from .manager import PlantMonitorManager
 from .models import PlantState
 
-ATTR_CLEAR_AT = "clear_at"
-ATTR_DRY_BELOW = "dry_below"
 ATTR_DRY_PLANTS = "dry_plants"
-ATTR_MOISTURE = "moisture"
 ATTR_MOISTURE_SENSOR = "moisture_sensor"
 
 
@@ -99,12 +96,9 @@ class PlantWateringNeededBinarySensor(
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return plant configuration and moisture information."""
+        """Return the configured source moisture sensor."""
         return {
             ATTR_MOISTURE_SENSOR: (
                 self.plant_state.config.moisture_sensor
             ),
-            ATTR_MOISTURE: self.plant_state.moisture,
-            ATTR_DRY_BELOW: self.plant_state.config.dry_below,
-            ATTR_CLEAR_AT: self.plant_state.config.clear_at,
         }

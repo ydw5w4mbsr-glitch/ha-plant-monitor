@@ -1,3 +1,4 @@
+
 """Sensor platform for the Plant Monitor integration."""
 
 from typing import Any
@@ -5,9 +6,12 @@ from typing import Any
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
+    SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import PERCENTAGE
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import (
     AddConfigEntryEntitiesCallback,
 )
@@ -16,12 +20,9 @@ from .entity import PlantMonitorEntity, PlantMonitorPlantEntity
 from .manager import PlantMonitorManager
 from .models import PlantState, PlantStatus
 
-ATTR_CLEAR_AT = "clear_at"
-ATTR_DRY_BELOW = "dry_below"
 ATTR_DRY_PLANTS = "dry_plants"
 ATTR_INVALID_SENSOR_COUNT = "invalid_sensor_count"
 ATTR_INVALID_SENSORS = "invalid_sensors"
-ATTR_MOISTURE = "moisture"
 ATTR_MOISTURE_SENSOR = "moisture_sensor"
 ATTR_UNAVAILABLE_SENSORS = "unavailable_sensors"
 ATTR_WATERING_NEEDED = "watering_needed"
@@ -45,10 +46,22 @@ async def async_setup_entry(
     for plant_state in manager.plant_states:
         async_add_entities(
             [
+                PlantSoilMoistureSensor(
+                    manager,
+                    plant_state,
+                ),
                 PlantStatusSensor(
                     manager,
                     plant_state,
-                )
+                ),
+                PlantDryBelowSensor(
+                    manager,
+                    plant_state,
+                ),
+                PlantClearAtSensor(
+                    manager,
+                    plant_state,
+                ),
             ],
             config_subentry_id=plant_state.config.subentry_id,
         )
@@ -116,6 +129,40 @@ class PlantMonitorUnavailableSensorsSensor(
         }
 
 
+class PlantSoilMoistureSensor(
+    PlantMonitorPlantEntity,
+    SensorEntity,
+):
+    """Report the current validated soil moisture of one plant."""
+
+    _attr_device_class = SensorDeviceClass.MOISTURE
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_translation_key = "soil_moisture"
+
+    def __init__(
+        self,
+        manager: PlantMonitorManager,
+        plant_state: PlantState,
+    ) -> None:
+        """Initialize a plant soil-moisture sensor."""
+        super().__init__(
+            manager,
+            plant_state,
+            "soil_moisture",
+        )
+
+    @property
+    def available(self) -> bool:
+        """Return whether a valid current moisture value exists."""
+        return self.plant_state.moisture is not None
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the validated current soil moisture."""
+        return self.plant_state.moisture
+
+
 class PlantStatusSensor(
     PlantMonitorPlantEntity,
     SensorEntity,
@@ -145,15 +192,68 @@ class PlantStatusSensor(
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return current moisture and plant configuration."""
+        """Return source-sensor and watering-state information."""
         return {
             ATTR_MOISTURE_SENSOR: (
                 self.plant_state.config.moisture_sensor
             ),
-            ATTR_MOISTURE: self.plant_state.moisture,
             ATTR_WATERING_NEEDED: (
                 self.plant_state.watering_needed
             ),
-            ATTR_DRY_BELOW: self.plant_state.config.dry_below,
-            ATTR_CLEAR_AT: self.plant_state.config.clear_at,
         }
+
+
+class PlantDryBelowSensor(
+    PlantMonitorPlantEntity,
+    SensorEntity,
+):
+    """Report the configured dry threshold of one plant."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_translation_key = "dry_below"
+
+    def __init__(
+        self,
+        manager: PlantMonitorManager,
+        plant_state: PlantState,
+    ) -> None:
+        """Initialize a plant dry-threshold sensor."""
+        super().__init__(
+            manager,
+            plant_state,
+            "dry_below",
+        )
+
+    @property
+    def native_value(self) -> float:
+        """Return the configured dry threshold."""
+        return self.plant_state.config.dry_below
+
+
+class PlantClearAtSensor(
+    PlantMonitorPlantEntity,
+    SensorEntity,
+):
+    """Report the configured alert-clear threshold of one plant."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_translation_key = "clear_at"
+
+    def __init__(
+        self,
+        manager: PlantMonitorManager,
+        plant_state: PlantState,
+    ) -> None:
+        """Initialize a plant alert-clear threshold sensor."""
+        super().__init__(
+            manager,
+            plant_state,
+            "clear_at",
+        )
+
+    @property
+    def native_value(self) -> float:
+        """Return the configured alert-clear threshold."""
+        return self.plant_state.config.clear_at

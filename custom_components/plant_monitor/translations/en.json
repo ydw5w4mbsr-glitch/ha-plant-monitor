@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Set up Plant Monitor",
-        "description": "Create the central Plant Monitor integration. Plants can be added afterwards from the integration page."
+        "description": "Create the central Plant Monitor integration.\nPlants can be added afterwards from the integration page."
       }
     },
     "abort": {
@@ -77,6 +77,9 @@
       "unavailable_sensors": {
         "name": "Plant Monitor unavailable sensors"
       },
+      "soil_moisture": {
+        "name": "Soil moisture"
+      },
       "status": {
         "name": "Status",
         "state": {
@@ -85,6 +88,12 @@
           "unavailable": "Unavailable",
           "invalid": "Invalid"
         }
+      },
+      "dry_below": {
+        "name": "Dry below"
+      },
+      "clear_at": {
+        "name": "Clear alert at"
       }
     }
   }

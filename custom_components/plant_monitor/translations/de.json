@@ -1,0 +1,100 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Plant Monitor einrichten",
+        "description": "Erstellt die zentrale Plant-Monitor-Integration.\nAnschliessend können Pflanzen auf der Integrationsseite hinzugefügt werden."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Plant Monitor ist bereits eingerichtet."
+    }
+  },
+  "config_subentries": {
+    "plant": {
+      "entry_type": "Pflanze",
+      "initiate_flow": {
+        "user": "Pflanze hinzufügen",
+        "reconfigure": "Pflanze bearbeiten"
+      },
+      "step": {
+        "user": {
+          "title": "Pflanze hinzufügen",
+          "description": "Wähle einen Bodenfeuchtigkeitssensor und lege fest, wann die Pflanze gegossen werden muss.",
+          "data": {
+            "name": "Pflanzenname",
+            "moisture_sensor": "Bodenfeuchtigkeitssensor",
+            "dry_below": "Trocken unter",
+            "clear_at": "Alarm aufheben ab"
+          },
+          "data_description": {
+            "name": "Name für das Pflanzengerät und seine Entitäten.",
+            "moisture_sensor": "Sensor mit einem numerischen Bodenfeuchtigkeitswert zwischen 0 und 100.",
+            "dry_below": "Die Pflanze muss gegossen werden, wenn die Feuchtigkeit unter diesen Wert fällt.",
+            "clear_at": "Der Giessalarm wird aufgehoben, sobald die Feuchtigkeit diesen Wert erreicht oder überschreitet."
+          }
+        },
+        "reconfigure": {
+          "title": "Pflanze bearbeiten",
+          "description": "Bodenfeuchtigkeitssensor oder Giessgrenzwerte ändern.",
+          "data": {
+            "name": "Pflanzenname",
+            "moisture_sensor": "Bodenfeuchtigkeitssensor",
+            "dry_below": "Trocken unter",
+            "clear_at": "Alarm aufheben ab"
+          },
+          "data_description": {
+            "name": "Name für das Pflanzengerät und seine Entitäten.",
+            "moisture_sensor": "Sensor mit einem numerischen Bodenfeuchtigkeitswert zwischen 0 und 100.",
+            "dry_below": "Die Pflanze muss gegossen werden, wenn die Feuchtigkeit unter diesen Wert fällt.",
+            "clear_at": "Der Giessalarm wird aufgehoben, sobald die Feuchtigkeit diesen Wert erreicht oder überschreitet."
+          }
+        }
+      },
+      "error": {
+        "name_required": "Gib einen Pflanzennamen ein.",
+        "invalid_thresholds": "Der Wert zum Aufheben des Alarms muss grösser sein als die Trockenheitsgrenze.",
+        "sensor_already_used": "Dieser Bodenfeuchtigkeitssensor ist bereits einer anderen Pflanze zugeordnet."
+      },
+      "abort": {
+        "reconfigure_successful": "Die Pflanze wurde erfolgreich aktualisiert."
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "plant_monitor_watering_needed": {
+        "name": "Plant Monitor: Giessen erforderlich"
+      },
+      "watering_needed": {
+        "name": "Giessen erforderlich"
+      }
+    },
+    "sensor": {
+      "dry_plants": {
+        "name": "Trockene Pflanzen"
+      },
+      "unavailable_sensors": {
+        "name": "Nicht verfügbare Sensoren"
+      },
+      "soil_moisture": {
+        "name": "Bodenfeuchtigkeit"
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "ok": "OK",
+          "dry": "Trocken",
+          "unavailable": "Nicht verfügbar",
+          "invalid": "Ungültig"
+        }
+      },
+      "dry_below": {
+        "name": "Trocken unter"
+      },
+      "clear_at": {
+        "name": "Alarm aufheben ab"
+      }
+    }
+  }
+}

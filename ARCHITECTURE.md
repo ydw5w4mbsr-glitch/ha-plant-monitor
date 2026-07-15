@@ -1,9 +1,9 @@
 # Plant Monitor Architecture
 
-**Repository:** `ydw5w4mbsr-glitch/ha-plant-monitor`  
-**Home Assistant domain:** `plant_monitor`  
-**Architecture status:** MVP implementation in progress  
-**Last updated:** 2026-07-14
+Repository: `ydw5w4mbsr-glitch/ha-plant-monitor`  
+Home Assistant domain: `plant_monitor`  
+Architecture status: Functional MVP; automated tests, documentation and release hardening pending  
+Last updated: 2026-07-15
 
 ## 1. Purpose
 
@@ -13,99 +13,139 @@ The integration answers one operational question:
 
 > Which plants need watering now?
 
-Each plant has its own moisture sensor and its own watering thresholds. Plant Monitor converts the raw sensor value into a stable watering state with hysteresis, preserves that state across restarts, and exposes entities that can be used in dashboards and normal Home Assistant automations.
+Each configured plant has:
 
-The integration is distributed as a public GitHub repository and installed through HACS as a custom repository.
+- one existing Home Assistant soil-moisture sensor;
+- an individual lower threshold, `dry_below`;
+- an individual recovery threshold, `clear_at`;
+- a retained watering state with hysteresis;
+- one logical Home Assistant device containing the plant-centred display entities.
+
+Plant Monitor does not own or alter the physical moisture sensor. It reads the source entity, validates its value and projects the relevant plant state into its own entities.
+
+The integration is distributed through this public GitHub repository and installed through HACS as a custom repository.
 
 ## 2. Design principles
 
-The implementation follows these principles:
+### 2.1 UI-first configuration
 
-1. **UI-first configuration**  
-   Plants are created, edited, and deleted through Home Assistant. No YAML configuration is required per plant.
+Plants are added, edited and deleted through Home Assistant. No per-plant YAML configuration is required.
 
-2. **Small MVP**  
-   Only functionality required for reliable watering decisions belongs in the first version.
+### 2.2 Small, understandable MVP
 
-3. **Native Home Assistant concepts**  
-   The integration uses Config Entries, Config Subentries, the entity and device registries, translations, storage helpers, and event-driven state listeners.
+Only functionality needed for a reliable watering decision belongs in the MVP. Species databases, predictions, fertilisation tracking and automatic irrigation remain outside the current scope.
 
-4. **Stable plant identity**  
-   A configured plant is a persistent logical object. Its identity must not depend on the currently assigned physical moisture sensor.
+### 2.3 Native Home Assistant concepts
 
-5. **No polling**  
-   Sensor changes are handled through Home Assistant state-change events.
+The integration uses:
 
-6. **No ownership of source sensors**  
-   Plant Monitor reads an existing sensor entity but does not duplicate, move, rename, disable, or otherwise modify that entity.
+- one Config Entry;
+- native Config Subentries for plants;
+- entity and device registries;
+- translation files;
+- storage helpers;
+- event-driven state listeners.
 
-7. **One source of configuration truth**  
-   Thresholds are stored only in the plant Config Subentry. They are not separately editable through number entities or YAML.
+### 2.4 Stable plant identity
 
-8. **Fail safely**  
-   Temporary sensor failures must not silently clear an existing watering alert.
+A plant is a persistent logical object. Its identity must not depend on:
+
+- its display name;
+- the selected source entity ID;
+- the physical moisture-sensor device.
+
+Replacing a sensor or renaming a plant must not create a new logical plant.
+
+### 2.5 No polling
+
+Source changes are processed from Home Assistant state-change events. Plant Monitor entities have polling disabled.
+
+### 2.6 No ownership of source sensors
+
+Plant Monitor reads an existing sensor entity but does not:
+
+- move it to another device;
+- rename it;
+- disable it;
+- alter its registry entry;
+- remove it from its original integration;
+- change its state.
+
+### 2.7 One configuration source of truth
+
+Thresholds are stored in the plant Config Subentry. They are displayed as read-only diagnostic sensors but edited only through the plant configuration flow.
+
+### 2.8 Fail safely
+
+A temporary sensor failure must not silently clear an existing watering alert.
 
 ## 3. MVP scope
 
-Each plant is configurable through the UI with:
+Each plant is configured with:
 
 - plant name;
 - soil-moisture sensor;
 - `dry_below`;
 - `clear_at`.
 
-The MVP supports:
+The functional MVP supports:
 
 - adding plants;
 - editing plants;
 - deleting plants;
 - different thresholds per plant;
+- duplicate source-sensor prevention;
+- event-driven source updates;
+- moisture-value validation;
 - hysteresis;
-- restoration of the last watering state after restart or reload;
-- handling of unavailable, unknown, non-numeric, infinite, and out-of-range sensor values;
-- prevention of assigning the same sensor to multiple plants;
-- event-driven updates;
-- a central overview across all plants;
-- normal Home Assistant automations based on exposed entities.
+- restoration of the last watering state after reload or restart;
+- unavailable and invalid source states;
+- one logical device per plant;
+- central aggregate entities;
+- five display entities per plant;
+- English and German translations;
+- use of all exposed entities in ordinary Home Assistant dashboards and automations.
 
 The MVP does not include:
 
 - a custom Lovelace card;
 - a plant species database;
-- location, pot size, pictures, or notes;
+- pictures, notes, pot size or location metadata;
 - fertilisation tracking;
-- predictions;
+- watering predictions;
 - built-in push notifications;
 - automatic irrigation;
 - an upper “too wet” threshold;
-- direct editing of thresholds through entities;
-- ownership or relocation of the source sensor entity.
+- direct threshold editing through entities;
+- ownership or relocation of source sensors.
 
-Notifications are created later through ordinary Home Assistant automations.
+Notifications should be implemented with ordinary Home Assistant automations.
 
 ## 4. Home Assistant integration model
 
 ### 4.1 Integration type
 
-The manifest uses:
+The manifest declares:
 
 ```json
 "integration_type": "hub"
 ```
 
-Plant Monitor is not modelled as a Home Assistant helper. It owns one central Config Entry, multiple Config Subentries, persistent runtime state, several entities, and logical plant devices.
+Plant Monitor is not implemented as a Home Assistant helper. It owns one central Config Entry, multiple Config Subentries, persistent runtime state, aggregate entities and logical plant devices.
 
-Using `helper` caused the integration to appear in the Helpers interface, where the required Config Subentry management was not accessible. The `hub` type correctly exposes the integration under **Settings → Devices & services → Integrations**.
+The `hub` integration type exposes the integration under:
+
+`Settings → Devices & services → Integrations`
 
 ### 4.2 Main Config Entry
 
-Plant Monitor allows exactly one main Config Entry:
+Exactly one main Config Entry is allowed:
 
 ```json
 "single_config_entry": true
 ```
 
-The main entry represents the Plant Monitor service as a whole. It contains no per-plant configuration.
+The main entry represents the Plant Monitor service. It contains no individual plant configuration.
 
 ### 4.3 Plant Config Subentries
 
@@ -118,21 +158,19 @@ plant
 A plant Subentry contains:
 
 ```text
-title               Plant name
-moisture_sensor     Source sensor entity ID
-dry_below           Lower threshold
-clear_at             Alert-clear threshold
+title               plant name
+moisture_sensor     source sensor entity ID
+dry_below           lower watering threshold
+clear_at             alert-clear threshold
 ```
 
-The Subentry ID is the stable internal identity of the plant.
-
-This avoids maintaining a custom plant list inside `entry.options` and lets Home Assistant provide native add, edit, and delete operations.
+The Config Subentry ID is the stable internal plant identity.
 
 ### 4.4 Duplicate source sensors
 
-A moisture sensor can be assigned to only one plant.
+One source moisture sensor can be assigned to only one plant.
 
-The Config Subentry flow checks all existing plant Subentries and rejects a sensor already used by another plant. During reconfiguration, the currently edited Subentry is excluded from this duplicate check.
+The Config Subentry flow checks all existing plant Subentries and rejects a source entity already assigned elsewhere. During reconfiguration, the currently edited plant is excluded from that comparison.
 
 ## 5. Domain model
 
@@ -163,7 +201,7 @@ class PlantState:
     moisture: float | None
 ```
 
-### 5.3 Status values
+### 5.3 Public status values
 
 The public plant status is one of:
 
@@ -176,12 +214,12 @@ invalid
 
 Meaning:
 
-- `ok`: the source value is valid and the internal watering state is false;
-- `dry`: the source value is valid and the internal watering state is true;
-- `unavailable`: the source entity is missing, `unknown`, or `unavailable`;
-- `invalid`: the source state exists but is not a valid percentage from 0 through 100.
+- `ok`: source value valid and retained watering state false;
+- `dry`: source value valid and retained watering state true;
+- `unavailable`: source entity missing, `unknown` or `unavailable`;
+- `invalid`: source state exists but is not a valid percentage from 0 through 100.
 
-The public status and the internal watering state are intentionally separate.
+The public status and retained watering state are intentionally separate. During a source failure, the status describes the current sensor problem while the watering state preserves the last safe watering decision.
 
 ## 6. Watering state machine
 
@@ -198,7 +236,7 @@ dry_below <= moisture < clear_at
     → retain previous watering_needed value
 ```
 
-This hysteresis prevents the alert from repeatedly switching near one threshold.
+This hysteresis prevents repeated switching around a single threshold.
 
 Configuration validation requires:
 
@@ -219,27 +257,25 @@ The following are not accepted as valid moisture measurements:
 - values below 0;
 - values above 100.
 
-For such values:
+For an invalid or unavailable source value:
 
 - `status` becomes `unavailable` or `invalid`;
-- the displayed current moisture becomes `None`;
-- the last known `watering_needed` value is retained.
+- projected soil moisture becomes unavailable;
+- the last retained `watering_needed` value remains unchanged.
 
-A dry plant therefore remains marked as needing water even if its sensor temporarily fails. The failure is visible through the status entity at the same time.
+A plant that was dry therefore remains marked as requiring water if its sensor temporarily fails.
 
 ## 7. Runtime architecture
 
 ### 7.1 Manager
 
-`PlantMonitorManager` is the central runtime object.
-
-It is stored as typed runtime data:
+`PlantMonitorManager` is the central runtime object and is stored as typed Config Entry runtime data:
 
 ```python
 ConfigEntry[PlantMonitorManager]
 ```
 
-and assigned to:
+It is assigned to:
 
 ```python
 entry.runtime_data
@@ -248,10 +284,10 @@ entry.runtime_data
 The manager owns:
 
 - all `PlantState` objects;
-- the mapping from source sensor entity IDs to plants;
-- the source-state listener;
-- persistence;
-- listener callbacks for entities;
+- the source-entity-to-plant mapping;
+- source state listeners;
+- retained-state persistence;
+- update callbacks for entities;
 - central aggregate calculations.
 
 ### 7.2 Event-driven updates
@@ -272,129 +308,123 @@ should_poll = False
 
 When a source state changes:
 
-1. the manager validates the value;
+1. the manager validates the source value;
 2. it applies the hysteresis state machine;
-3. it schedules persistence if `watering_needed` changed;
+3. it schedules persistence if the retained watering state changed;
 4. it notifies registered entities;
-5. the entities write their new Home Assistant state.
+5. entities write their updated Home Assistant state.
 
-### 7.3 Setup and unload
+### 7.3 Setup
 
 During `async_setup_entry`:
 
-1. plant Subentries are converted into `PlantConfig` objects;
+1. plant Config Subentries are converted into `PlantConfig` objects;
 2. `PlantMonitorManager` is created;
 3. the manager is assigned to `entry.runtime_data`;
-4. an update listener is registered;
+4. a Config Entry update listener is registered;
 5. persisted watering states are restored;
 6. source sensor listeners are registered;
 7. current source states are evaluated;
-8. binary-sensor and sensor platforms are forwarded with `async_forward_entry_setups`.
+8. binary-sensor and sensor platforms are forwarded.
+
+### 7.4 Unload
 
 During `async_unload_entry`:
 
-1. entity platforms are unloaded with `async_unload_platforms`;
+1. entity platforms are unloaded;
 2. source listeners are removed;
-3. the current watering state is saved;
+3. current retained watering states are saved;
 4. manager listeners are cleared.
 
-### 7.4 Reloads after plant changes
+### 7.5 Reload after plant changes
 
-Adding, editing, or deleting a plant changes the main Config Entry through its Subentries.
+Adding, editing or deleting a plant changes the main Config Entry through its Subentries.
 
-A single update listener reloads the main Config Entry after such changes. The reconfigure flow updates the Subentry but does not independently request a second reload.
-
-This keeps lifecycle handling in one place and avoids duplicate reload scheduling.
+A single update listener reloads the main Config Entry. The reconfigure flow updates the Subentry but does not independently request an additional reload.
 
 ## 8. Persistence
 
-Only the state that cannot always be reconstructed after restart is persisted:
+Only state that cannot always be reconstructed safely after restart is persisted:
 
 ```text
-watering_needed by plant subentry ID
+watering_needed by plant Config Subentry ID
 ```
 
-The storage key is based on the integration domain and main Config Entry ID.
+Current moisture and public status are not persisted. They are recalculated from the source entity during startup.
 
-The current moisture and public status are not persisted. They are recalculated from the source entity state during startup.
-
-Persisting by Subentry ID provides stable restoration even if:
+Persisting by Config Subentry ID provides stable restoration if:
 
 - the plant is renamed;
-- the source entity is replaced;
-- thresholds are edited.
+- the source sensor is replaced;
+- thresholds are changed.
 
-Deleted plant IDs are naturally ignored when stored data is loaded.
+Stored IDs belonging to deleted plants are ignored.
 
 ## 9. Device model
 
 ### 9.1 One logical device per plant
 
-Each plant has its own logical Home Assistant device.
+Every plant has one logical Home Assistant device.
 
-The device identifier is derived from:
+Its identifier is derived from:
 
 ```text
-config_entry_id + subentry_id
+main Config Entry ID + plant Config Subentry ID
 ```
 
-This device groups all entities that describe the configured plant.
+The device groups all Plant Monitor entities belonging to the configured plant.
 
-The plant device is not a claim that the plant itself is electronic hardware. It represents the Plant Monitor service object for that plant.
+The device represents a Plant Monitor service object. It does not imply that the plant itself is electronic hardware.
 
 ### 9.2 Source sensor remains independent
 
-The selected source sensor remains attached to its original integration and original device, such as an Ecowitt WH51 device.
+The selected source sensor remains attached to its original integration and original hardware device, for example an Ecowitt WH51.
 
 Plant Monitor does not:
 
 - move the source entity;
-- add the source entity to the plant device;
+- attach it to the logical plant device;
 - remove it from the source device;
 - change its entity ID;
-- change its registry ownership.
+- claim registry ownership.
 
-### 9.3 Why Plant Monitor does not attach its entities to the source device
+### 9.3 Reason for separation
 
-This alternative was considered and rejected.
+Plant and source sensor have different lifecycles:
 
-The plant and the source sensor have different lifecycles:
+- a plant can receive a replacement sensor;
+- a sensor can later be assigned to another plant;
+- thresholds belong to the plant;
+- retained watering state belongs to the plant;
+- plant automations should survive hardware replacement.
 
-- a plant may receive a replacement sensor;
-- a sensor may later monitor another plant;
-- thresholds belong to the plant, not to the sensor hardware;
-- the stored watering state belongs to the plant;
-- plant entities and automations should retain their identity when hardware changes.
+Attaching Plant Monitor entities to the hardware device would couple stable plant identity to replaceable hardware.
 
-Attaching Plant Monitor entities to the source device would couple plant identity to replaceable hardware and would introduce dependencies on the device-registry behaviour of other integrations.
+### 9.4 Projected soil-moisture sensor
 
-It would also behave inconsistently for source entities without a device.
+The physical source entity cannot simultaneously belong to its original hardware device and the separate logical plant device.
 
-### 9.4 Projected moisture entity
-
-The original source sensor cannot simultaneously appear inside the separate plant device without being moved away from its source device.
-
-To make the current reading visible on the plant device, Plant Monitor will expose a read-only projected measurement:
+Plant Monitor therefore exposes a read-only projected sensor:
 
 ```text
 sensor.<plant>_soil_moisture
 ```
 
-This entity:
+It:
 
 - mirrors the validated current source value;
 - uses `%`;
 - uses the moisture device class;
 - uses measurement state class;
 - belongs to the logical plant device;
-- does not replace or modify the original sensor;
+- does not replace or modify the source entity;
 - is unavailable when no valid current value exists.
 
-This duplication is intentional at the entity-display layer. It provides stable plant-centred presentation while preserving correct ownership of the physical source sensor.
+This duplication is intentional only at the presentation layer.
 
 ## 10. Entity model
 
-### 10.1 Existing central entities
+### 10.1 Central entities
 
 The main Config Entry exposes:
 
@@ -406,86 +436,89 @@ sensor.plant_monitor_unavailable_sensors
 
 Responsibilities:
 
-- central watering-needed binary sensor: true if any plant needs water;
-- dry-plants sensor: count of plants whose retained watering state is true;
-- unavailable-sensors sensor: count of plants whose source status is unavailable.
+- central watering-needed binary sensor: on if any retained plant watering state is true;
+- dry-plants sensor: count and names of plants requiring water;
+- unavailable-sensors sensor: count and entity IDs of unavailable source sensors, with invalid-source diagnostics as attributes.
 
-Invalid source values are exposed as attributes on the unavailable-sensors aggregate sensor in the current MVP implementation.
+### 10.2 Per-plant entities
 
-### 10.2 Existing per-plant entities
-
-Each plant currently exposes:
-
-```text
-binary_sensor.<plant>_watering_needed
-sensor.<plant>_status
-```
-
-Unique IDs are derived from:
-
-```text
-config_entry_id + subentry_id + entity key
-```
-
-This keeps entity identity stable across renaming and source sensor replacement.
-
-### 10.3 Planned per-plant display entities
-
-The next implementation change adds:
+Each logical plant device exposes five entities:
 
 ```text
 sensor.<plant>_soil_moisture
+sensor.<plant>_status
+binary_sensor.<plant>_watering_needed
 sensor.<plant>_dry_below
 sensor.<plant>_clear_at
 ```
 
-The resulting plant device will contain:
+Displayed meaning:
 
 ```text
-Soil moisture       current validated value in %
-Status              ok, dry, unavailable, or invalid
-Watering needed     on or off
-Dry below           configured threshold in %
-Clear alert at      configured threshold in %
+Soil moisture       current validated source value in %
+Status              ok, dry, unavailable or invalid
+Watering needed     retained decision, on or off
+Dry below           configured lower threshold in %
+Clear alert at      configured recovery threshold in %
 ```
 
-`Dry below` and `Clear alert at` are read-only diagnostic/configuration displays. They are edited only through **Edit plant**.
+`Dry below` and `Clear alert at` are read-only diagnostic entities. Their values are changed only through **Edit plant**.
 
-### 10.4 Attribute cleanup
+### 10.3 Stable unique IDs
 
-The frequently changing moisture value is currently included as an attribute of existing plant entities.
+Per-plant unique IDs are derived from:
 
-When the dedicated soil-moisture entity is added, the dynamic moisture attribute will be removed from:
+```text
+main Config Entry ID + plant Config Subentry ID + entity key
+```
 
-- the per-plant status sensor;
-- the per-plant watering-needed binary sensor.
+Existing status and watering-needed unique IDs must never be changed merely to rename entities or adjust presentation.
 
-Threshold attributes may also be removed where they become redundant after the dedicated threshold entities exist.
+The new entity keys are:
 
-This avoids storing a frequently changing measurement repeatedly as attributes on multiple entities.
+```text
+soil_moisture
+dry_below
+clear_at
+```
+
+### 10.4 Entity availability
+
+The projected soil-moisture sensor is available only when `PlantState.moisture` contains a validated numeric value.
+
+The status and retained watering-needed entities remain available during source failures so that the failure and previous watering decision remain visible.
+
+### 10.5 State attributes
+
+Dynamic moisture and threshold values are not duplicated as attributes of the per-plant status and watering-needed entities.
+
+Current per-plant attributes are intentionally limited:
+
+- status sensor: source moisture-sensor entity ID and retained watering state;
+- watering-needed binary sensor: source moisture-sensor entity ID.
+
+The dedicated moisture and threshold entities are the canonical display surfaces for those values.
 
 ## 11. User interface
 
-### 11.1 Installation and initial setup
+### 11.1 Installation
 
-The integration is:
+The current development installation flow is:
 
-1. added to HACS as a custom repository;
-2. downloaded through HACS;
-3. loaded after a Home Assistant restart;
-4. added from **Settings → Devices & services → Integrations**.
+1. add the repository to HACS as a custom integration repository;
+2. download Plant Monitor through HACS;
+3. restart Home Assistant;
+4. add the integration from `Settings → Devices & services → Integrations`.
 
-The integration must appear as **Plant Monitor (Helper)** only because Home Assistant already contains another integration named Plant Monitor. Internally, this project is configured as a hub, not as a helper.
-
-A future naming decision may rename the public integration to reduce confusion with Home Assistant’s built-in Plant integration.
+No tagged GitHub release exists yet. Development installation currently follows the repository default branch.
 
 ### 11.2 Plant management
 
 Inside the Plant Monitor integration page, the user can:
 
-- use **Add plant**;
-- open an existing plant Subentry;
-- edit its configuration;
+- select **Add plant**;
+- open an existing plant Config Subentry;
+- edit it;
 - delete it.
 
 The add/edit form contains:
@@ -497,48 +530,87 @@ Dry below
 Clear alert at
 ```
 
-### 11.3 Mobile-first operation
+### 11.3 Plant device display
+
+The logical plant device shows:
+
+- three normal entities under Sensors:
+  - soil moisture;
+  - status;
+  - watering needed;
+- two read-only threshold entities under Diagnostic:
+  - dry below;
+  - clear alert at.
+
+### 11.4 Mobile-first operation
 
 Configuration must remain practical on a phone:
 
 - no per-plant YAML;
-- no manual registry editing;
+- no manual entity-registry changes;
 - no editing of internal storage;
 - no duplicate configuration surfaces;
 - clear labels and validation messages;
-- all plant values grouped on the logical plant device.
+- all plant-centred values grouped on one logical device.
 
 A custom dashboard card remains outside the MVP.
 
-## 12. Error handling and invariants
+## 12. Translations
+
+The repository contains:
+
+```text
+custom_components/plant_monitor/translations/en.json
+custom_components/plant_monitor/translations/de.json
+```
+
+Both files cover:
+
+- initial integration setup;
+- add-plant and reconfigure flows;
+- validation and abort messages;
+- central entity names;
+- all five per-plant entity names;
+- translated enum states.
+
+English translation keys are the implementation baseline. Additional languages must preserve the same key structure.
+
+## 13. Error handling and invariants
 
 The implementation must preserve these invariants:
 
-1. One main Config Entry only.
-2. One Config Subentry per plant.
-3. One source sensor per plant.
+1. Exactly one main Config Entry.
+2. Exactly one Config Subentry per plant.
+3. Exactly one source sensor per plant.
 4. The same source sensor cannot be assigned to two plants.
 5. `dry_below` must be lower than `clear_at`.
-6. Valid percentages are restricted to 0 through 100.
-7. Sensor failure does not clear the retained watering state.
-8. Listener registration must be reversed during unload.
-9. Plant entity unique IDs must not depend on the plant name or source entity ID.
-10. Source entities remain owned by their original integration.
-11. All thresholds are edited through the Config Subentry flow only.
+6. Valid moisture percentages are restricted to 0 through 100.
+7. Sensor failure does not clear retained watering state.
+8. Listener registration is reversed during unload.
+9. Plant entity unique IDs do not depend on plant name or source entity ID.
+10. Source entities remain owned by their original integrations.
+11. Thresholds are edited only through the Config Subentry flow.
+12. The projected moisture entity never writes to the source entity.
+13. Existing entity unique IDs remain backward compatible.
+14. Presentation changes must not alter the hysteresis state machine or persistence key.
 
-## 13. Repository structure
+## 14. Repository structure
 
-Target structure:
+Current relevant structure:
 
 ```text
 ha-plant-monitor/
+├── .github/
+│   └── workflows/
+│       ├── hacs.yml
+│       └── hassfest.yml
 ├── custom_components/
 │   └── plant_monitor/
 │       ├── brand/
 │       │   └── icon.png
 │       ├── translations/
-│       │   ├── en.json
-│       │   └── de.json
+│       │   ├── de.json
+│       │   └── en.json
 │       ├── __init__.py
 │       ├── binary_sensor.py
 │       ├── config_flow.py
@@ -548,126 +620,165 @@ ha-plant-monitor/
 │       ├── manifest.json
 │       ├── models.py
 │       └── sensor.py
-├── .github/
-│   └── workflows/
-│       ├── hacs.yml
-│       └── hassfest.yml
-├── tests/
+├── .gitignore
 ├── ARCHITECTURE.md
-├── CHANGELOG.md
 ├── hacs.json
 ├── LICENSE
-├── pyproject.toml
 └── README.md
 ```
 
-Not every target file or directory is implemented yet.
+Test infrastructure, changelog and release automation are not yet present.
 
-## 14. Validation and quality
+## 15. Validation and quality
 
-The repository currently uses:
+The repository uses:
 
 - Home Assistant hassfest validation;
 - HACS repository validation.
 
-Both workflows passed before this architecture document was added.
+Both workflows pass for the implemented entity model and English/German translations.
 
-Passing these checks confirms repository and metadata structure, but it does not replace unit and integration tests.
+These checks validate repository and integration structure but do not replace automated behavioural tests.
 
-Required automated tests still include:
+### 15.1 Required automated tests
 
-- values below `dry_below`;
-- values exactly at `dry_below`;
-- values inside the hysteresis band;
-- values exactly at `clear_at`;
-- values above `clear_at`;
-- restart restoration;
-- unavailable source while previously dry;
-- unavailable source while previously OK;
-- non-numeric source values;
-- NaN and infinity;
-- values outside 0 through 100;
-- duplicate sensor rejection;
-- add, reconfigure, and delete Subentry flows;
-- source sensor replacement;
+Automated coverage must include at least:
+
+#### Watering state machine
+
+- value below `dry_below`;
+- value exactly at `dry_below`;
+- value inside the hysteresis band after an OK state;
+- value inside the hysteresis band after a dry state;
+- value exactly at `clear_at`;
+- value above `clear_at`.
+
+#### Invalid and unavailable values
+
+- missing source entity;
+- `unknown`;
+- `unavailable`;
+- non-numeric state;
+- NaN;
+- positive and negative infinity;
+- values below 0;
+- values above 100;
+- failure while previously dry;
+- failure while previously OK.
+
+#### Persistence and lifecycle
+
+- retained watering-state restoration;
+- renamed plant;
+- replaced source sensor;
+- threshold change;
+- deleted plant data ignored;
 - full unload and listener cleanup;
-- aggregate entity updates.
+- reload after add, edit and delete.
 
-## 15. Current implementation status
+#### Config flow
 
-Implemented and manually confirmed:
+- single main Config Entry;
+- add plant;
+- reconfigure plant;
+- delete plant;
+- invalid threshold combinations;
+- duplicate sensor rejection;
+- current plant excluded from duplicate check during reconfiguration.
+
+#### Entities
+
+- creation of all central entities;
+- creation of all five per-plant entities;
+- stable unique IDs;
+- correct logical plant-device association;
+- projected moisture value and availability;
+- diagnostic threshold values;
+- aggregate updates;
+- preservation of status and watering state during source failures;
+- absence of redundant dynamic moisture and threshold attributes.
+
+## 16. Current implementation status
+
+### 16.1 Implemented and manually confirmed
 
 - public GitHub repository;
 - HACS custom-repository installation;
 - HACS validation passing;
 - hassfest validation passing;
-- integration manifest;
+- integration manifest version `0.1.0`;
 - integration type `hub`;
 - one main Config Entry;
 - native plant Config Subentries;
-- add and edit plant flows;
+- add, edit and delete plant support;
 - duplicate sensor validation;
 - runtime manager;
 - event-driven source updates;
 - hysteresis;
-- invalid and unavailable handling;
-- watering-state persistence;
-- logical device per plant;
-- central entities;
-- per-plant status and watering-needed entities;
+- invalid and unavailable source handling;
+- retained watering-state persistence;
+- one logical device per plant;
+- central aggregate entities;
+- per-plant projected soil-moisture sensor;
+- per-plant status entity;
+- per-plant watering-needed binary sensor;
+- per-plant threshold display sensors;
+- removal of redundant dynamic moisture and threshold attributes;
+- English translations;
+- German translations;
 - successful installation and startup in Home Assistant;
-- two plants created successfully through the UI.
+- multiple plants created through the UI;
+- all five expected entities visible on each tested plant device.
 
-Not yet completed:
+### 16.2 Not yet completed
 
-- projected per-plant soil-moisture entity;
-- per-plant threshold display entities;
-- removal of duplicated dynamic moisture attributes;
-- complete automated test suite;
-- German translation;
-- final README;
+- automated test infrastructure;
+- complete automated behavioural test suite;
+- final user-facing README;
 - changelog;
-- release process and first tagged release;
-- final naming decision to avoid confusion with the built-in Plant Monitor result.
+- documented notification-automation example;
+- final public naming decision;
+- release process;
+- first tagged GitHub release;
+- HACS installation test from a tagged release.
 
-## 16. Next implementation step
+## 17. Next implementation step
 
-The next code change is deliberately limited to entity presentation.
+The next development step is automated test infrastructure and a first behavioural test set.
 
-Add to each plant device:
+The first test increment should be deliberately limited to:
 
-```text
-Soil moisture
-Dry below
-Clear alert at
-```
+1. establish the repository test environment;
+2. test the watering state machine at all threshold boundaries;
+3. test invalid and unavailable input handling;
+4. test retained watering-state behaviour during source failure;
+5. test creation, values, availability, unique IDs and device association of all five per-plant entities;
+6. run tests in GitHub Actions.
 
-Then remove the dynamic moisture measurement from the attributes of the existing per-plant entities.
+This step must not change:
 
-This change must not alter:
-
-- Config Entry or Config Subentry identity;
-- manager persistence;
+- the Config Entry or Config Subentry model;
+- persistence keys;
+- device identifiers;
+- existing unique IDs;
 - source sensor ownership;
-- plant device identifiers;
-- existing status and watering-needed unique IDs;
-- hysteresis behaviour;
-- lifecycle handling.
+- hysteresis semantics;
+- entity presentation already confirmed in Home Assistant.
 
-## 17. Deferred work
+## 18. Deferred work
 
-After the display entities are complete:
+After the initial automated tests:
 
-1. update English translations;
-2. add unit and config-flow tests;
-3. add German translations in one final pass;
-4. complete README and changelog;
-5. decide on a less ambiguous public display name;
-6. create the first tagged GitHub release;
-7. test HACS installation from the release rather than `main`;
-8. document a normal Home Assistant notification automation.
+1. complete Config Flow, persistence and lifecycle tests;
+2. replace the placeholder README with installation and operation documentation;
+3. add a changelog;
+4. document a normal Home Assistant notification automation;
+5. decide whether the public display name should change to avoid confusion with other plant-related integrations;
+6. define versioning and release procedure;
+7. create the first tagged release;
+8. test a clean HACS installation from that release.
 
-## 18. Architectural decision summary
+## 19. Architectural decision summary
 
 | Decision | Result |
 |---|---|
@@ -677,14 +788,18 @@ After the display entities are complete:
 | Runtime update model | Event-driven |
 | Coordinator | None |
 | Polling | Disabled |
-| Persistent state | `watering_needed` by Subentry ID |
+| Persistent state | `watering_needed` by Config Subentry ID |
 | Plant identity | Config Subentry ID |
 | Plant grouping | One logical device per plant |
 | Source sensor ownership | Original integration retains ownership |
 | Source sensor relocation | Not allowed |
-| Moisture shown on plant device | Read-only projected sensor |
+| Moisture on plant device | Read-only projected sensor |
+| Threshold display | Read-only diagnostic sensors |
 | Threshold editing | Config Subentry flow only |
-| Notifications | Normal Home Assistant automation |
+| Per-plant entity count | Five |
+| Translation languages | English and German |
+| Notifications | Ordinary Home Assistant automation |
 | Custom dashboard card | Outside MVP |
+| Next development priority | Automated tests |
 
-This document is the authoritative technical reference for the Plant Monitor repository. Architecture changes should update this file in the same commit as the related code.
+This document is the authoritative technical reference for the Plant Monitor repository. Any architectural change must update this file in the same commit as the related code.

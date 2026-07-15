@@ -6,6 +6,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
+from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlowResult,
@@ -14,6 +15,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_NAME, Platform
 from homeassistant.core import callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.selector import (
     EntitySelector,
     EntitySelectorConfig,
@@ -95,7 +97,12 @@ class PlantConfigSubentryFlow(ConfigSubentryFlow):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=_plant_schema(user_input),
+            data_schema=_plant_schema(
+                user_input,
+                excluded_entity_ids=(
+                    self._excluded_moisture_sensor_ids()
+                ),
+            ),
             errors=errors,
         )
 
@@ -134,7 +141,18 @@ class PlantConfigSubentryFlow(ConfigSubentryFlow):
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=_plant_schema(
-                user_input if user_input is not None else defaults
+                (
+                    user_input
+                    if user_input is not None
+                    else defaults
+                ),
+                excluded_entity_ids=(
+                    self._excluded_moisture_sensor_ids(
+                        excluded_subentry_id=(
+                            subentry.subentry_id
+                        ),
+                    )
+                ),
             ),
             errors=errors,
         )
@@ -178,6 +196,43 @@ class PlantConfigSubentryFlow(ConfigSubentryFlow):
 
         return errors
 
+    def _excluded_moisture_sensor_ids(
+        self,
+        *,
+        excluded_subentry_id: str | None = None,
+    ) -> list[str]:
+        """Return entities that must not be offered as sources."""
+        entry = self._get_entry()
+        entity_registry = er.async_get(self.hass)
+
+        excluded_entity_ids = {
+            registry_entry.entity_id
+            for registry_entry in (
+                er.async_entries_for_config_entry(
+                    entity_registry,
+                    entry.entry_id,
+                )
+            )
+        }
+
+        for subentry in entry.subentries.values():
+            if (
+                subentry.subentry_type
+                != SUBENTRY_TYPE_PLANT
+                or subentry.subentry_id
+                == excluded_subentry_id
+            ):
+                continue
+
+            moisture_sensor = subentry.data.get(
+                CONF_MOISTURE_SENSOR
+            )
+
+            if isinstance(moisture_sensor, str):
+                excluded_entity_ids.add(moisture_sensor)
+
+        return sorted(excluded_entity_ids)
+
 
 def _subentry_data(
     user_input: Mapping[str, Any],
@@ -198,6 +253,8 @@ def _subentry_data(
 
 def _plant_schema(
     defaults: Mapping[str, Any] | None = None,
+    *,
+    excluded_entity_ids: list[str] | None = None,
 ) -> vol.Schema:
     """Return the plant configuration form schema."""
     values = defaults or {}
@@ -249,7 +306,13 @@ def _plant_schema(
 
     schema[sensor_field] = EntitySelector(
         EntitySelectorConfig(
-            domain=Platform.SENSOR,
+            filter={
+                "domain": Platform.SENSOR,
+                "device_class": (
+                    SensorDeviceClass.MOISTURE
+                ),
+            },
+            exclude_entities=excluded_entity_ids or [],
         )
     )
 

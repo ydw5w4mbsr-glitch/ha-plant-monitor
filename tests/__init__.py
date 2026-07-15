@@ -1,0 +1,1 @@
+"""Tests for the Plant Monitor integration."""
